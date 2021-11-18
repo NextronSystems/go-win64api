@@ -4,6 +4,7 @@ package winapi
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	ole "github.com/go-ole/go-ole"
@@ -24,6 +25,8 @@ var updateResultStatus []string = []string{
 func UpdatesPending() (*so.WindowsUpdate, error) {
 	retData := &so.WindowsUpdate{}
 
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	ole.CoInitialize(0)
 	defer ole.CoUninitialize()
 	unknown, err := oleutil.CreateObject("Microsoft.Update.Session")

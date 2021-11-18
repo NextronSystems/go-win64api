@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,9 @@ func GetInfo() (so.Info, error) {
 }
 
 func GetSystemProfile() (so.Hardware, so.OperatingSystem, so.Memory, []so.Disk, []so.Network, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	ole.CoInitialize(0)
 	defer ole.CoUninitialize()
 
