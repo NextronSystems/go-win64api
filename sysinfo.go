@@ -15,7 +15,7 @@ import (
 	ole "github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 
-	so "github.com/Codehardt/go-win64api/shared"
+	so "github.com/NextronSystems/go-win64api/shared"
 )
 
 var siNetWkstaGetInfo = modNetapi32.NewProc("NetWkstaGetInfo")

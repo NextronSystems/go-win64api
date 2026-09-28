@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	so "github.com/Codehardt/go-win64api/shared"
+	so "github.com/NextronSystems/go-win64api/shared"
 )
 
 var fiNetFileEnum = modNetapi32.NewProc("NetFileEnum")
