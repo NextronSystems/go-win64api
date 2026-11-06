@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	so "github.com/NextronSystems/go-win64api/shared"
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -666,7 +667,7 @@ func UserSetProfile(username string, path string) (bool, error) {
 
 // UTF16toString converts a pointer to a UTF16 string into a Go string.
 func UTF16toString(p *uint16) string {
-	return syscall.UTF16ToString((*[4096]uint16)(unsafe.Pointer(p))[:])
+	return windows.UTF16PtrToString(p)
 }
 
 func DomainUserLocked(username string, domain string) (bool, error) {

@@ -236,7 +236,11 @@ func luidinmap(needle *LUID, haystack *map[uint32]SessionLUID) (bool, bool) {
 }
 
 func LsatoString(p LSA_UNICODE_STRING) string {
-	return syscall.UTF16ToString((*[4096]uint16)(unsafe.Pointer(p.buffer))[:p.Length])
+	if p.buffer == 0 {
+		return ""
+	}
+	// Length is in bytes, not UTF-16 code units
+	return syscall.UTF16ToString(unsafe.Slice((*uint16)(unsafe.Pointer(p.buffer)), p.Length/2))
 }
 
 func in_array(val interface{}, array interface{}) (exists bool) {
