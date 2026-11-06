@@ -68,38 +68,44 @@ func ListNetworkSessions() ([]so.NetworkSession, error) {
 		sizeTest     SESSION_INFO_2
 		retVal       = make([]so.NetworkSession, 0)
 	)
-	ret, _, _ := sessNetSessionEnum.Call(
-		uintptr(0),
-		uintptr(0),
-		uintptr(0),
-		uintptr(uint32(2)), // SESSION_INFO_2
-		uintptr(unsafe.Pointer(&dataPointer)),
-		uintptr(uint32(USER_MAX_PREFERRED_LENGTH)),
-		uintptr(unsafe.Pointer(&entriesRead)),
-		uintptr(unsafe.Pointer(&entriesTotal)),
-		uintptr(unsafe.Pointer(&resumeHandle)),
-	)
-	if ret != NET_API_STATUS_NERR_Success {
-		return nil, fmt.Errorf("error fetching network sessions")
-	} else if dataPointer == uintptr(0) {
-		return nil, nil
-	}
-	var iter = dataPointer
-	for i := uint32(0); i < entriesRead; i++ {
-		var data = (*SESSION_INFO_2)(unsafe.Pointer(iter))
-		sd := so.NetworkSession{
-			Clientname: UTF16toString(data.Sesi2_cname),
-			Username:   UTF16toString(data.Sesi2_username),
-			NumOpens:   data.Sesi2_num_opens,
-			Time:       time.Duration(data.Sesi2_time) * time.Second,
-			IdleTime:   time.Duration(data.Sesi2_idle_time) * time.Second,
-			UserFlags:  data.Sesi2_user_flags,
-			ClientType: UTF16toString(data.Sesi2_cltype_name),
+	for {
+		ret, _, _ := sessNetSessionEnum.Call(
+			uintptr(0),
+			uintptr(0),
+			uintptr(0),
+			uintptr(uint32(2)), // SESSION_INFO_2
+			uintptr(unsafe.Pointer(&dataPointer)),
+			uintptr(uint32(USER_MAX_PREFERRED_LENGTH)),
+			uintptr(unsafe.Pointer(&entriesRead)),
+			uintptr(unsafe.Pointer(&entriesTotal)),
+			uintptr(unsafe.Pointer(&resumeHandle)),
+		)
+		if ret != NET_API_STATUS_NERR_Success && ret != NET_API_STATUS_ERROR_MORE_DATA {
+			return nil, fmt.Errorf("error fetching network sessions: %w", syscall.Errno(ret))
+		} else if dataPointer == uintptr(0) {
+			break
 		}
-		retVal = append(retVal, sd)
-		iter = uintptr(unsafe.Pointer(iter + unsafe.Sizeof(sizeTest)))
+		var iter = dataPointer
+		for i := uint32(0); i < entriesRead; i++ {
+			var data = (*SESSION_INFO_2)(unsafe.Pointer(iter))
+			sd := so.NetworkSession{
+				Clientname: UTF16toString(data.Sesi2_cname),
+				Username:   UTF16toString(data.Sesi2_username),
+				NumOpens:   data.Sesi2_num_opens,
+				Time:       time.Duration(data.Sesi2_time) * time.Second,
+				IdleTime:   time.Duration(data.Sesi2_idle_time) * time.Second,
+				UserFlags:  data.Sesi2_user_flags,
+				ClientType: UTF16toString(data.Sesi2_cltype_name),
+			}
+			retVal = append(retVal, sd)
+			iter = uintptr(unsafe.Pointer(iter + unsafe.Sizeof(sizeTest)))
+		}
+		usrNetApiBufferFree.Call(dataPointer)
+		dataPointer = 0
+		if ret == NET_API_STATUS_NERR_Success { // No more data to read
+			break
+		}
 	}
-	usrNetApiBufferFree.Call(dataPointer)
 	return retVal, nil
 }
 
