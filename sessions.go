@@ -127,7 +127,7 @@ func ListLoggedInUsers() ([]so.SessionDetails, error) {
 		uintptr(unsafe.Pointer(&logonSessionCount)),
 		uintptr(unsafe.Pointer(&loginSessionList)),
 	)
-	defer sessLsaFreeReturnBuffer.Call(uintptr(unsafe.Pointer(&loginSessionList)))
+	defer sessLsaFreeReturnBuffer.Call(loginSessionList)
 
 	var iter uintptr = uintptr(unsafe.Pointer(loginSessionList))
 
@@ -206,7 +206,7 @@ func sessUserLUIDs() (map[LUID]string, error) {
 		uintptr(unsafe.Pointer(&logonSessionCount)),
 		uintptr(unsafe.Pointer(&loginSessionList)),
 	)
-	defer sessLsaFreeReturnBuffer.Call(uintptr(unsafe.Pointer(&loginSessionList)))
+	defer sessLsaFreeReturnBuffer.Call(loginSessionList)
 
 	var iter uintptr = uintptr(unsafe.Pointer(loginSessionList))
 
