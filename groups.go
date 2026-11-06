@@ -258,7 +258,7 @@ func LocalGroupGetMembers(groupname string) ([]so.LocalGroupMember, error) {
 		var data = (*LOCALGROUP_MEMBERS_INFO_3)(unsafe.Pointer(iter))
 
 		domainAndUsername := UTF16toString(data.Lgrmi3_domainandname)
-		split := strings.SplitN(domainAndUsername, "\\", 1)
+		split := strings.SplitN(domainAndUsername, "\\", 2)
 		var domain, name string
 		if len(split) > 1 {
 			domain = split[0]
