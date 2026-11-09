@@ -377,13 +377,13 @@ func getProcessLUID(pid uint32) (retLUID LUID, isAdmin bool, retError error) {
 
 	// Check token for membership of the Administrators group.
 	var chkRes int32 // Win32 BOOL is 4 bytes; a Go bool is 1
-	mbrRes, _, _ := procCheckTokenMembership.Call(
+	mbrRes, _, lastError := procCheckTokenMembership.Call(
 		uintptr(ttHandle),
 		uintptr(AdministratorsGroup),
 		uintptr(unsafe.Pointer(&chkRes)),
 	)
 	if mbrRes != 1 {
-		retError = fmt.Errorf("Error checking group membership")
+		retError = fmt.Errorf("error checking group membership: %w", lastError)
 		return
 	} else {
 		isAdmin = chkRes != 0
