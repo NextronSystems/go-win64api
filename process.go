@@ -134,9 +134,9 @@ func newProcessData(e *PROCESSENTRY32, path string, user string) so.Process {
 }
 
 func ProcessKill(pid uint32) (bool, error) {
-	handle, _, _ := procOpenProcess.Call(uintptr(uint32(PROCESS_TERMINATE)), uintptr(0), uintptr(pid))
-	if handle < 0 {
-		return false, fmt.Errorf("Failed to open handle: %s", syscall.GetLastError())
+	handle, _, lastError := procOpenProcess.Call(uintptr(uint32(PROCESS_TERMINATE)), uintptr(0), uintptr(pid))
+	if handle == 0 {
+		return false, fmt.Errorf("failed to open handle: %w", lastError)
 	}
 	defer procCloseHandle.Call(handle)
 
@@ -159,9 +159,9 @@ func ProcessList() ([]so.Process, error) {
 		return nil, fmt.Errorf("Error getting LUIDs... %s", err.Error())
 	}
 
-	handle, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
-	if handle < 0 {
-		return nil, syscall.GetLastError()
+	handle, _, lastError := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
+	if handle == uintptr(syscall.InvalidHandle) {
+		return nil, fmt.Errorf("failed to create process snapshot: %w", lastError)
 	}
 	defer procCloseHandle.Call(handle)
 
@@ -206,9 +206,9 @@ func ProcessLUIDList() (map[uint32]SessionLUID, error) {
 		return nil, fmt.Errorf("Error assigning privs... %s", err.Error())
 	}
 
-	handle, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
-	if handle < 0 {
-		return nil, syscall.GetLastError()
+	handle, _, lastError := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
+	if handle == uintptr(syscall.InvalidHandle) {
+		return nil, fmt.Errorf("failed to create process snapshot: %w", lastError)
 	}
 	defer procCloseHandle.Call(handle)
 
@@ -295,7 +295,7 @@ func getProcessLUID(pid uint32) (retLUID LUID, isAdmin bool, retError error) {
 	retLUID = LUID{}
 
 	handle, _, lastError := procOpenProcess.Call(uintptr(uint32(PROCESS_QUERY_INFORMATION)), uintptr(0), uintptr(pid))
-	if handle < 0 {
+	if handle == 0 {
 		retError = lastError
 		return
 	}
@@ -376,17 +376,17 @@ func getProcessLUID(pid uint32) (retLUID LUID, isAdmin bool, retError error) {
 	}
 
 	// Check token for membership of the Administrators group.
-	var chkRes bool
-	mbrRes, _, _ := procCheckTokenMembership.Call(
+	var chkRes int32 // Win32 BOOL is 4 bytes; a Go bool is 1
+	mbrRes, _, lastError := procCheckTokenMembership.Call(
 		uintptr(ttHandle),
 		uintptr(AdministratorsGroup),
 		uintptr(unsafe.Pointer(&chkRes)),
 	)
 	if mbrRes != 1 {
-		retError = fmt.Errorf("Error checking group membership")
+		retError = fmt.Errorf("error checking group membership: %w", lastError)
 		return
 	} else {
-		isAdmin = chkRes
+		isAdmin = chkRes != 0
 	}
 
 	var ltHandle uintptr
@@ -429,7 +429,7 @@ func getProcessLUID(pid uint32) (retLUID LUID, isAdmin bool, retError error) {
 		retError = fmt.Errorf("Error checking group membership (2): %s", lastError)
 		return
 	} else {
-		isAdmin = chkRes
+		isAdmin = chkRes != 0
 	}
 
 	return
@@ -438,9 +438,9 @@ func getProcessLUID(pid uint32) (retLUID LUID, isAdmin bool, retError error) {
 func getProcessFullPathAndLUID(pid uint32) (string, LUID, error) {
 	var fullpath string
 
-	handle, _, _ := procOpenProcess.Call(uintptr(uint32(PROCESS_QUERY_INFORMATION)), uintptr(0), uintptr(pid))
-	if handle < 0 {
-		return "", LUID{}, syscall.GetLastError()
+	handle, _, lastError := procOpenProcess.Call(uintptr(uint32(PROCESS_QUERY_INFORMATION)), uintptr(0), uintptr(pid))
+	if handle == 0 {
+		return "", LUID{}, fmt.Errorf("failed to open process: %w", lastError)
 	}
 	defer procCloseHandle.Call(handle)
 

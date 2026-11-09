@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package winapi
@@ -10,6 +11,7 @@ import (
 	"unsafe"
 
 	so "github.com/NextronSystems/go-win64api/shared"
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -324,33 +326,39 @@ func ListLoggedInUsersWksta() ([]so.UserInfoWksta, error) {
 		sizeTest     WKSTA_USER_INFO_1
 		retVal       = make([]so.UserInfoWksta, 0)
 	)
-	ret, _, _ := usrNetWkstaUserEnum.Call(
-		uintptr(0),
-		uintptr(uint32(1)), // WKSTA_USER_INFO_1
-		uintptr(unsafe.Pointer(&dataPointer)),
-		uintptr(uint32(USER_MAX_PREFERRED_LENGTH)),
-		uintptr(unsafe.Pointer(&entriesRead)),
-		uintptr(unsafe.Pointer(&entriesTotal)),
-		uintptr(unsafe.Pointer(&resumeHandle)),
-	)
-	if ret != NET_API_STATUS_NERR_Success {
-		return nil, fmt.Errorf("error fetching user entry")
-	} else if dataPointer == uintptr(0) {
-		return nil, nil
-	}
-	var iter = dataPointer
-	for i := uint32(0); i < entriesRead; i++ {
-		var data = (*WKSTA_USER_INFO_1)(unsafe.Pointer(iter))
-		ud := so.UserInfoWksta{
-			Username:    UTF16toString(data.Wkui1_username),
-			LogonDomain: UTF16toString(data.Wkui1_oth_domain),
-			OthDomains:  UTF16toString(data.Wkui1_oth_domain),
-			LogonServer: UTF16toString(data.Wkui1_logon_server),
+	for {
+		ret, _, _ := usrNetWkstaUserEnum.Call(
+			uintptr(0),
+			uintptr(uint32(1)), // WKSTA_USER_INFO_1
+			uintptr(unsafe.Pointer(&dataPointer)),
+			uintptr(uint32(USER_MAX_PREFERRED_LENGTH)),
+			uintptr(unsafe.Pointer(&entriesRead)),
+			uintptr(unsafe.Pointer(&entriesTotal)),
+			uintptr(unsafe.Pointer(&resumeHandle)),
+		)
+		if ret != NET_API_STATUS_NERR_Success && ret != NET_API_STATUS_ERROR_MORE_DATA {
+			return nil, fmt.Errorf("error fetching user entry: %w", syscall.Errno(ret))
+		} else if dataPointer == uintptr(0) {
+			break
 		}
-		retVal = append(retVal, ud)
-		iter = uintptr(unsafe.Pointer(iter + unsafe.Sizeof(sizeTest)))
+		var iter = dataPointer
+		for i := uint32(0); i < entriesRead; i++ {
+			var data = (*WKSTA_USER_INFO_1)(unsafe.Pointer(iter))
+			ud := so.UserInfoWksta{
+				Username:    UTF16toString(data.Wkui1_username),
+				LogonDomain: UTF16toString(data.Wkui1_logon_domain),
+				OthDomains:  UTF16toString(data.Wkui1_oth_domain),
+				LogonServer: UTF16toString(data.Wkui1_logon_server),
+			}
+			retVal = append(retVal, ud)
+			iter = uintptr(unsafe.Pointer(iter + unsafe.Sizeof(sizeTest)))
+		}
+		usrNetApiBufferFree.Call(dataPointer)
+		dataPointer = 0
+		if ret == NET_API_STATUS_NERR_Success {
+			break
+		}
 	}
-	usrNetApiBufferFree.Call(dataPointer)
 	return retVal, nil
 }
 
@@ -375,8 +383,8 @@ func listLocalUsers(maxLength uint32) ([]so.LocalUser, error) {
 	)
 
 	ret, _, _ := usrNetUserEnum.Call(
-		uintptr(0),         // servername
-		uintptr(uint32(2)), // level, USER_INFO_2
+		uintptr(0),                                  // servername
+		uintptr(uint32(2)),                          // level, USER_INFO_2
 		uintptr(uint32(USER_FILTER_NORMAL_ACCOUNT)), // filter, only "normal" accounts.
 		uintptr(unsafe.Pointer(&dataPointer)),       // struct buffer for output data.
 		uintptr(maxLength),                          // allow as much memory as required.
@@ -384,8 +392,12 @@ func listLocalUsers(maxLength uint32) ([]so.LocalUser, error) {
 		uintptr(unsafe.Pointer(&entriesTotal)),
 		uintptr(unsafe.Pointer(&resumeHandle)),
 	)
-	if ret != NET_API_STATUS_NERR_Success {
-		return nil, fmt.Errorf("error fetching user entry")
+	if ret == NET_API_STATUS_ERROR_MORE_DATA {
+		// ERROR_MORE_DATA returns a buffer with partial data that must be freed
+		usrNetApiBufferFree.Call(dataPointer)
+		return nil, fmt.Errorf("too many users to list, increase maxCount")
+	} else if ret != NET_API_STATUS_NERR_Success {
+		return nil, fmt.Errorf("error fetching user entry: %w", syscall.Errno(ret))
 	} else if dataPointer == uintptr(0) {
 		return nil, nil
 	}
@@ -666,7 +678,7 @@ func UserSetProfile(username string, path string) (bool, error) {
 
 // UTF16toString converts a pointer to a UTF16 string into a Go string.
 func UTF16toString(p *uint16) string {
-	return syscall.UTF16ToString((*[4096]uint16)(unsafe.Pointer(p))[:])
+	return windows.UTF16PtrToString(p)
 }
 
 func DomainUserLocked(username string, domain string) (bool, error) {

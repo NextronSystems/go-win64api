@@ -96,8 +96,8 @@ func GetServices() ([]so.Service, error) {
 				var data *ENUM_SERVICE_STATUS_PROCESS = (*ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(iter))
 
 				rData := so.Service{
-					SCName:      syscall.UTF16ToString((*[4096]uint16)(unsafe.Pointer(data.lpServiceName))[:]),
-					DisplayName: syscall.UTF16ToString((*[4096]uint16)(unsafe.Pointer(data.lpDisplayName))[:]),
+					SCName:      windows.UTF16PtrToString(data.lpServiceName),
+					DisplayName: windows.UTF16PtrToString(data.lpDisplayName),
 					Status:      data.ServiceStatusProcess.dwCurrentState,
 					ServiceType: data.ServiceStatusProcess.dwServiceType,
 					IsRunning:   (data.ServiceStatusProcess.dwCurrentState != windows.SERVICE_STOPPED),
